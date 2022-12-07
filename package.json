@@ -1,0 +1,33 @@
+{
+  "name": "reddit-poll",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start -p 3002",
+    "test": "jest"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@emotion/react": "^11.10.5",
+    "@emotion/styled": "^11.10.5",
+    "@mui/icons-material": "^5.10.16",
+    "@mui/material": "^5.10.16",
+    "@mui/x-data-grid": "^5.17.14",
+    "axios": "^1.2.0",
+    "basic-auth-header": "^1.0.1",
+    "cookie": "^0.5.0",
+    "csv": "^6.2.5",
+    "leven": "^4.0.0",
+    "next": "^13.0.6",
+    "snoowrap": "^1.23.0",
+    "unidecode": "^0.1.8",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.3.1"
+  }
+}

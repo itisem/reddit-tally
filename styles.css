@@ -1,0 +1,59 @@
+:root{
+	--dark1: #52057b;
+	--dark2: #1d1ce5;
+	--light1: #dddddd;
+	--light2: #bbbbbb;
+	--important: #ff5555;
+}
+
+@font-face {
+	font-family: "Manrope";
+	src: url("/fonts/Manrope-400.ttf");
+}
+@font-face {
+	font-family: "Manrope";
+	font-weight: 700;
+	src: url("/fonts/Manrope-700.ttf");
+}
+
+body{
+	font-family: Manrope!important;
+	background: linear-gradient(-35deg, var(--dark1) 0%, var(--dark2) 100%);
+	background-attachment: fixed;
+	background-size: no-repeat;
+	color: var(--light1)!important;
+}
+
+.container{
+	max-width: 1000px;
+	margin: 0 auto;
+}
+
+header{
+	display: flex;
+	width: 100%;
+}
+header p{
+	margin-left: auto;
+}
+
+a{
+	color: var(--light2);
+}
+a:hover{
+	text-decoration: none;
+}
+
+.tbc-container{
+	position: relative;
+}
+.tbc-container label{
+	color: var(--light1);
+	display: block;
+	position: absolute;
+	left: 9px;
+	top: -25px;
+	font-size: 1.2rem;
+	transform: scale(0.75);
+	transform-origin: top left;
+}
