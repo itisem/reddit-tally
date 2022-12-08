@@ -22,7 +22,7 @@ export default function Results({results}){
 			rows={rows}
 			columns={columns}
 			pageSize={pageSize}
-			rowsPerPageOptions={[10,20,50,100,200,500,1000]}
+			rowsPerPageOptions={[10,20,50,100]}
 			onPageSizeChange={s => setPageSize(s)}
 			autoHeight
 		/>
