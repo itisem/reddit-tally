@@ -1,7 +1,7 @@
 import Snoowrap from "snoowrap";
 import cookie from "cookie";
 import unidecode from "unidecode";
-import leven from "leven";
+import {distance} from "fastest-levenshtein";
 
 const range = n => [...Array(n).keys()];
 
@@ -73,19 +73,29 @@ export default function tally(req, res){
 		settings.entryScoring = range(settings.entryCount).map(x => x+1).reverse();
 	}
 
-	const notEqual = (checkThis, against, thresholdMultiplier) => {
+	let reorderings = {};
+
+	const reorder = (checkThis) => {
 		let reorderings = [];
 		switch(settings.listType){
 			case "artistTitle":
 				const possibleSplits = checkThis.split(" - ");
-				reorderings = Array(possibleSplits.length).map(i => [...possibleSplits.slice(i), ...possibleSplits.slice(0, i)].join(" - "));
+				reorderings = [...Array(possibleSplits.length).keys()].map(i => [...possibleSplits.slice(i), ...possibleSplits.slice(0, i)].join(" - "));
 				break;
 			case "raw":
 				reorderings = [checkThis];
 				break;
 		}
-		return reorderings.every(x => leven(checkThis, against) > thresholdMultiplier * settings.typoThreshold);
+		return reorderings;
 	}
+
+	const addReordering = (checkThis) => {
+		if(!reorderings[checkThis]){
+			reorderings[checkThis] = reorder(checkThis);
+		}
+	}
+
+	const notEqual = (checkThis, against, thresholdMultiplier) => checkThis.every(x => distance(x, against) > thresholdMultiplier * settings.typoThreshold);
 
 	const r = new Snoowrap({
 		userAgent: "reddit-tally",
@@ -130,15 +140,16 @@ export default function tally(req, res){
 			}
 			parsedUsers.push(username);
 
-			if(parseList) lists[username] = {username, list: entry, id: comment.id, flaired: !!comment.author_flair_template_id};
+			if(parseList) lists[username] = {username, list: entry, id: comment.id};
 		}
 
 		for(let user in lists){ // parses user lists completely, but doesn't fix the typos here
 			let list = lists[user];
 			const normalisedEntries = list.list.map(x => normalise(x));
+			normalisedEntries.map(x => addReordering(x));
 			let validList = true;
 			for(let i = 0; i < normalisedEntries.length; i++){ // ensure that someone didn't sneak in some duplicates via misspelling them
-				validList = validList && normalisedEntries.slice(0,i).every(x => notEqual(normalisedEntries[i], x, 2)); // double multiplier so that you can't just make two things both 1 letter off from the correct
+				validList = validList && normalisedEntries.slice(0,i).every(x => notEqual(reorderings[normalisedEntries[i]], x, 2)); // double multiplier so that you can't just make two things both 1 letter off from the correct
 			}
 
 			if(!validList){
@@ -172,17 +183,19 @@ export default function tally(req, res){
 		entries = Object.fromEntries(Object.entries(entries).sort(([,a],[,b]) => b.points - a.points)); // sort by points
 		const entryNames = Object.keys(entries);
 		for(let i = 0; i < entryNames.length; i++){ // gets rid of typo-based duplicates
-			let foundDuplicate = true;
+			let foundDuplicate = false;
 			let j = 0;
 			while(j < i && !foundDuplicate){
-				if(!entryNames[j].discarded && !notEqual(entryNames[i], entryNames[j], 1)){
+				if(!entryNames[j].discarded && !notEqual(reorderings[entryNames[i]], entryNames[j], 1)){
 					let ej = entries[entryNames[j]];
 					let ei = entries[entryNames[i]];
 					ej.points += ei.points;
 					ej.lists += ei.lists;
 					ej.variants = {...ej.variants, ...ei.variants};
 					ei.discarded = true;
+					foundDuplicate = true;
 				}
+				j += 1;
 			}
 		}
 

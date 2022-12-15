@@ -164,6 +164,7 @@ function RedditPollTally(){
 		params.set("listType", listType);
 		params.set("entryCount", itemsScored);
 		params.set("entryScoring", scoringSystem);
+		params.set("typoThreshold", fixTypos);
 		const url = `/api/tally/${postID}?${params.toString()}`;
 		fetch(url).then(r => r.json()).then(r => {
 			setActivePostID(submittedPost);
@@ -217,7 +218,7 @@ function RedditPollTally(){
 	useEffect(() => {
 		let parsedCookies = cookie.parse(document.cookie);
 		if(parsedCookies.token){
-			fetch("/api/me").then(x=>x.json()).then(x => {
+			fetch("/api/me").then(x => x.json()).then(x => {
 				if(!x.error) setDisplayName(x.displayName);
 			});
 		}
