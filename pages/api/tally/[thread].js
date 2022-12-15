@@ -17,13 +17,17 @@ function parseEntry(entry){
 	return entries;
 }
 
-function normalise(entry){
+function normalise(entry, listType = "artistTitle"){
 	let s = unidecode(entry);
 	s = s.toLowerCase();
 	s = s.replaceAll("&", " ").replaceAll(/\band\b/gu, " ").replaceAll(/\bthe\b/gu, " ");
-	s = s.replaceAll("—", "-").replaceAll("-", " - ").replaceAll(/( - )+/gu, " - ");
-	s = s.replaceAll(/[^0-9a-z\- ]/g, "");
-	s = s.replace(/\s+/g, " ");
+	if(listType === "artistTitle"){
+		s = s.replaceAll(/[^0-9a-z\-]/g, "");
+		s = s.replaceAll("—", "-").replaceAll("-", " - ").replaceAll(/( - )+/gu, " - ");
+	}
+	else{
+		s = s.replaceAll(/[^0-9a-z]/g, "");
+	}
 	s = s.trim();
 	return s;
 }
@@ -145,7 +149,7 @@ export default function tally(req, res){
 
 		for(let user in lists){ // parses user lists completely, but doesn't fix the typos here
 			let list = lists[user];
-			const normalisedEntries = list.list.map(x => normalise(x));
+			const normalisedEntries = list.list.map(x => normalise(x, settings.listType));
 			normalisedEntries.map(x => addReordering(x));
 			let validList = true;
 			for(let i = 0; i < normalisedEntries.length; i++){ // ensure that someone didn't sneak in some duplicates via misspelling them
