@@ -1,36 +1,15 @@
 import Snoowrap from "snoowrap";
 import cookie from "cookie";
-import unidecode from "unidecode";
 import {distance} from "fastest-levenshtein";
 
-const range = n => [...Array(n).keys()];
+import Entries from "/utils/entries";
+import hasDuplicates from "/utils/has-duplicates";
+import normalise from "/utils/normalise";
+import parseEntry from "/utils/parse-entry";
+import range from "/utils/range";
+import reorder from "/utils/reorder";
 
-function parseEntry(entry){
-	let entries = [];
-	const lines = entry.split(/\r?\n/).map(x => x.trim());
-	for(let line of lines){
-		const matches = line.match(/[#*]?\s?\d{1,2}[:\.)]?\s?(.*)$/u); // should match any semi-reasonable format
-		if(matches){
-			entries.push(matches[1]);
-		}
-	}
-	return entries;
-}
-
-function normalise(entry, listType = "artistTitle"){
-	let s = unidecode(entry);
-	s = s.toLowerCase();
-	s = s.replaceAll("&", " ").replaceAll(/\band\b/gu, " ").replaceAll(/\bthe\b/gu, " ");
-	if(listType === "artistTitle"){
-		s = s.replaceAll(/[^0-9a-z\-]/g, "");
-		s = s.replaceAll("—", "-").replaceAll("-", " - ").replaceAll(/( - )+/gu, " - ");
-	}
-	else{
-		s = s.replaceAll(/[^0-9a-z]/g, "");
-	}
-	s = s.trim();
-	return s;
-}
+import {EntryStats} from "/types";
 
 export default function tally(req, res){
 	const cookies = req.headers.cookie ? cookie.parse(req.headers.cookie) : {};
@@ -48,6 +27,8 @@ export default function tally(req, res){
 		entryCount: 10,
 		entryScoring: []
 	};
+
+	let entries = new Entries();
 
 	try{
 		settings.typoThreshold = req.query.typoThreshold !== undefined ? +req.query.typoThreshold : 1;
@@ -79,28 +60,6 @@ export default function tally(req, res){
 
 	let reorderings = {};
 
-	const reorder = (checkThis) => {
-		let reorderings = [];
-		switch(settings.listType){
-			case "artistTitle":
-				const possibleSplits = checkThis.split(" - ");
-				reorderings = [...Array(possibleSplits.length).keys()].map(i => [...possibleSplits.slice(i), ...possibleSplits.slice(0, i)].join(" - "));
-				break;
-			case "raw":
-				reorderings = [checkThis];
-				break;
-		}
-		return reorderings;
-	}
-
-	const addReordering = (checkThis) => {
-		if(!reorderings[checkThis]){
-			reorderings[checkThis] = reorder(checkThis);
-		}
-	}
-
-	const notEqual = (checkThis, against, thresholdMultiplier) => checkThis.every(x => distance(x, against) > thresholdMultiplier * settings.typoThreshold);
-
 	const r = new Snoowrap({
 		userAgent: "reddit-tally",
 		accessToken: cookies.token
@@ -114,16 +73,17 @@ export default function tally(req, res){
 		let duplicateUserLists = [];
 		let duplicateEntryLists = [];
 		let wrongCountLists = [];
-		let entries = {};
 
+		// basic parsing and sanity checks for entries
 		for(let comment of comments){
 			let parseList = true;
 			const username = comment.author.name;
-			if(comment.parent_id !== submission.name) continue;
-			if(comment.distinguished) continue;
+			if(comment.parent_id !== submission.name) continue; // should never happen, but just in case snoowrap changes: non-toplevel comments are not entries
+			if(comment.distinguished) continue; // mod comments are not entries
 			if(comment.removed) continue;
 			if(username === "[deleted]") continue;
 
+			// remove users with duplicate entries
 			if(parsedUsers.includes(username)){
 				duplicateUserLists.push({username, id: comment.id});
 				if(lists[username]) duplicateUserLists.push({username, id: lists[username].id});
@@ -149,70 +109,35 @@ export default function tally(req, res){
 
 		for(let user in lists){ // parses user lists completely, but doesn't fix the typos here
 			let list = lists[user];
+			// doing it like this prevents having to reorder/re-normalise everything n times. not the prettiest, but it does the job
 			const normalisedEntries = list.list.map(x => normalise(x, settings.listType));
-			normalisedEntries.map(x => addReordering(x));
-			let validList = true;
-			for(let i = 0; i < normalisedEntries.length; i++){ // ensure that someone didn't sneak in some duplicates via misspelling them
-				validList = validList && normalisedEntries.slice(0,i).every(x => notEqual(reorderings[normalisedEntries[i]], x, 2)); // double multiplier so that you can't just make two things both 1 letter off from the correct
-			}
+			normalisedEntries.forEach(x => {
+				if(!reorderings[x]) reorderings[x] = reorder(x);
+			});
 
-			if(!validList){
+			// ensure that someone didn't sneak in some duplicates via misspelling them
+			// double multiplier so that you can't just make two things both 1 letter off from the correct
+			if(hasDuplicates(normalisedEntries, reorderings, settings.typoThreshold * 2)){
 				duplicateEntryLists.push({username: list.username, id: list.id});
 			}
 			else{
 				for(let i = 0; i < normalisedEntries.length; i++){ // collect points, no typo fixing just yet
-					if(!entries[normalisedEntries[i]]){
-						entries[normalisedEntries[i]] = {
-							points: 0,
-							lists: 0,
-							variants: {},
-							discarded: false
-						};
-					}
-					let entryItem = entries[normalisedEntries[i]];
-					entryItem.lists += 1;
-					entryItem.points += settings.entryScoring[i];
-					if(!entryItem.variants[list.list[i]]){
-						entryItem.variants[list.list[i]] = {
-							points: 0,
-							lists: 0
-						};
-					}
-					entryItem.variants[list.list[i]].lists += 1;
-					entryItem.variants[list.list[i]].points += settings.entryScoring[i];
+					entries.add({real: list.list[i], normal: normalisedEntries[i]}, settings.entryScoring[i]);
 				}
 			}		
 		}
 
-		entries = Object.fromEntries(Object.entries(entries).sort(([,a],[,b]) => b.points - a.points)); // sort by points
-		const entryNames = Object.keys(entries);
-		for(let i = 0; i < entryNames.length; i++){ // gets rid of typo-based duplicates
-			let foundDuplicate = false;
-			let j = 0;
-			while(j < i && !foundDuplicate){
-				if(!entryNames[j].discarded && !notEqual(reorderings[entryNames[i]], entryNames[j], 1)){
-					let ej = entries[entryNames[j]];
-					let ei = entries[entryNames[i]];
-					ej.points += ei.points;
-					ej.lists += ei.lists;
-					ej.variants = {...ej.variants, ...ei.variants};
-					ei.discarded = true;
-					foundDuplicate = true;
-				}
-				j += 1;
-			}
-		}
+		entries.sort(); // sort by points
+		entries.fixDuplicates(reorderings, settings.typoThreshold);
 
 		let finalEntries = {};
-		for(let key in entries){
-			const entry = entries[key];
-			if(!entry.discarded){
-				const variantFrequency = Object.entries(entry.variants).sort(([,a],[,b]) => b.lists - a.lists); // pick the most common variant as display name
-				finalEntries[variantFrequency[0][0]] = {
-					points: entry.points,
-					lists: entry.lists
-				};
-			}
+		for(let key in entries.entries){
+			const entry = entries.entries[key];
+			const variantFrequency = Object.entries(entry.variants).sort(([,a],[,b]) => b.lists - a.lists); // pick the most common variant as display name
+			finalEntries[variantFrequency[0][0]] = {
+				points: entry.points,
+				lists: entry.lists
+			};
 		}
 
 		duplicateUsers = Array.from(duplicateUsers);
