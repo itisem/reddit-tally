@@ -97,15 +97,14 @@ export default function tally(req: NextApiRequest, res: NextApiResponse){
 	const submission = r.getSubmission(thread);
 	submission.expandReplies({limit: Infinity, depth: Infinity}).then(response => {
 		const comments = response.comments;
-		let {lists, duplicateUserLists, duplicateEntryLists, wrongCountLists, reorderings} = parseEntries(comments, parseOpts);
+		let {lists, duplicateUserLists, duplicateEntryLists, wrongCountLists} = parseEntries(comments, parseOpts);
 		for(let user in lists){
 			try{
-				console.log(user);
 				entries.addEntry(lists[user]);
 			}
 			catch(e){
 				if(e.cause?.type === "duplicate"){
-					duplicateEntryLists.push(e => e.cause?.list as SimpleComment);
+					duplicateEntryLists.push(e.cause?.list as SimpleComment);
 				}
 			}
 		}
