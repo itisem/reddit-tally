@@ -1,9 +1,8 @@
 import parseEntry from "./parse-entry";
 import normalise from "./normalise";
 import hasDuplicates from "./has-duplicates";
-import reorder, {ListType} from "./reorder";
+import type {ListType} from "./reorder";
 import type {Entry} from "./entries";
-
 import type {Comment} from "snoowrap";
 
 export interface ParseEntriesOpts{
@@ -60,20 +59,20 @@ export default function parseEntries(comments: (Comment | FakeComment)[], opts: 
 		}
 		// turn an entry to a usable list
 		let entry = parseEntry(comment.body);
-		entry = entry.map(x => normalise(x, opts.listType as ListType));
+		let normalisedEntry = entry.map(x => normalise(x, opts.listType as ListType));
 		// remove entries with wrong counts
 		if(entry.length !== opts.entryCount){
 			wrongCountLists.push({username, id: comment.id});
 			continue;
 		}
 		// remove entries with duplicates
-		if(entry.length !== new Set(entry).size){
+		if(normalisedEntry.length !== new Set(normalisedEntry).size){
 			duplicateEntryLists.push({username, id: comment.id});
 			continue;
 		}
 		parsedUsers.push(username);
 		// add list to lists
-		lists[username] = {username, list: entry, id: comment.id};
+		lists[username] = {username, list: entry, normalisedList: normalisedEntry, id: comment.id};
 	}
 	return {lists, duplicateUserLists, duplicateEntryLists, wrongCountLists};
 }

@@ -91,17 +91,20 @@ describe("entry parsing", () => {
 				user1: {
 					username: "user1",
 					id: "a",
-					list: ["a", "b", "c"]
+					list: ["a", "b", "c"],
+					normalisedList: ["a", "b", "c"]
 				},
 				user2: {
 					username: "user2",
 					id: "b",
-					list: ["a", "c", "d"]
+					list: ["a", "c", "d"],
+					normalisedList: ["a", "c", "d"]
 				},
 				user8: {
 					username: "user8",
 					id: "k",
-					list: ["c", "d", "e"]
+					list: ["C", "d", "E"],
+					normalisedList: ["c", "d", "e"]
 				}
 			},
 			duplicateUserLists: [
