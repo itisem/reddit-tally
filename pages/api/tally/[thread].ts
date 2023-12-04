@@ -99,23 +99,18 @@ export default function tally(req: NextApiRequest, res: NextApiResponse){
 		const comments = response.comments;
 		let {lists, duplicateUserLists, duplicateEntryLists, wrongCountLists, reorderings} = parseEntries(comments, parseOpts);
 		for(let user in lists){
-			entries.addEntry(lists[user]);
+			try{
+				console.log(user);
+				entries.addEntry(lists[user]);
+			}
+			catch(e){
+				if(e.cause?.type === "duplicate"){
+					duplicateEntryLists.push(e => e.cause?.list as SimpleComment);
+				}
+			}
 		}
-		entries.sort(); // sort by points
-		entries.fixDuplicates(reorderings);
-
-		let finalEntries = {};
-		for(let key in entries.entries){
-			const entry = entries.entries[key];
-			const variantFrequency = Object.entries(entry.variants).sort(([,a],[,b]) => b.lists - a.lists); // pick the most common variant as display name
-			finalEntries[variantFrequency[0][0]] = {
-				points: entry.points,
-				lists: entry.lists
-			};
-		}
-
 		res.json({
-			entries: finalEntries,
+			entries: entries.finalise(),
 			discardedEntries: {
 				userHasMultiplePosts: duplicateUserLists,
 				postHasDuplicateEntries: duplicateEntryLists,
