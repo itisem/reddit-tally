@@ -16,6 +16,9 @@ import Errors from "/components/errors";
 import HelpButton from "/components/help-button";
 import DownloadButtons from "/components/download-buttons";
 
+import downloadFile from "/utils/download-file";
+
+// mui colour palette
 const theme = createTheme({
 	palette: {
 		text: {
@@ -49,36 +52,46 @@ const theme = createTheme({
 });
 
 export default function ThemedPage(){
+	// add mui to the actual page
 	return (<ThemeProvider theme={theme}><RedditPollTally /></ThemeProvider>);
 }
 
+// the main contents of the page itself
 function RedditPollTally(){
+	// username
 	const [displayName, setDisplayName] = useState("");
 
+	// list-related settings
 	const [listType, setListType] = useState("artistTitle");
 	const [itemsScored, setItemsScored] = useState(10);
 	const [fixTypos, setFixTypos] = useState(1);
 	const [postID, setPostID] = useState("");
-	const [activePostID, setActivePostID] = useState("");
+	const [activePostId, setactivePostId] = useState("");
 	const [scoringSystem, setScoringSystem] = useState("");
 
+	// error messages
 	const [displayError, setDisplayError] = useState(false);
 	const [errorQueue, setErrorQueue] = useState([]);
 	const [currentError, setCurrentError] = useState("");
 
+	// current state of computation
 	const [displayResults, setDisplayResults] = useState(false);
 	const [displayLoading, setDisplayLoading] = useState(false);
 
+	// results
 	const [results, setResults] = useState({
 		entries: {},
 		discardedEntries: {userHasMultiplePosts: [], postHasDuplicateEntries: [], postHasWrongEntryCount: []},
 	});
 
+	// download related settings
 	const [downloadItems, setDownloadItems] = useState(9999);
 	const [downloadFormat, setDownloadFormat] = useState("csv");
 
+	// regex to find the reddit post id
 	const idRegex = /^[a-z0-9]{3,8}$/;
 
+	// various onchange handlers, mainly just for sanity
 	const handleListType = e => setListType(e.target.value);
 	const handleItemsScored = e => setItemsScored(+e.target.value);
 	const handleFixTypos = e => setFixTypos(+e.target.value);
@@ -92,20 +105,21 @@ function RedditPollTally(){
 			return;
 		}
 
+		// find the reddit post id in a long url
 		const postRegex = /^https?:\/\/(?:www\.)?reddit\.com\/r\/[a-zA-Z0-9_-]{3,20}\/comments\/([a-z0-9]{0,8})(?:\/.*)?$/u;
 		const postMatches = v.match(postRegex);
 		if(postMatches){
 			setPostID(postMatches[1]);
 			return;
 		}
-
+		// find the reddit post id in a short url
 		const shortenedRegex = /^https?:\/\/(?:www\.)?redd\.it\/([a-z0-9]{0,8})\/?$/u;
 		const shortenedMatches = v.match(shortenedRegex);
 		if(shortenedMatches){
 			setPostID(shortenedMatches[1]);
 			return;
 		}
-
+		// find the reddit post id in just an id
 		const idMatches = v.match(idRegex);
 		if(idMatches){
 			setPostID(v);
@@ -114,6 +128,7 @@ function RedditPollTally(){
 	}
 	const handleScoringSystem = e => {
 		let v = e.target.value.trim();
+		// make sure that the scoring system is all numbers by converting everything to numbers and then rejoining afterwards
 		let points = v.split(",");
 		try{
 			points.map(x => +x.trim());
@@ -124,6 +139,7 @@ function RedditPollTally(){
 		}
 	}
 
+	// show and hide error messages
 	const showError = message => {
 		if(displayError){
 			setErrorQueue([...errorQueue, message]);
@@ -132,7 +148,6 @@ function RedditPollTally(){
 			setCurrentError(message);
 		}
 	}
-
 	const hideError = () => {
 		setDisplayError(false);
 		if(errorQueue.length > 0){
@@ -144,22 +159,31 @@ function RedditPollTally(){
 	}
 
 	const validateForm = () => {
+		// by all accounts, the onchange regex handlers SHOULD ensure that the post id is valid
+		// but i am adding a duplicate check here to make sure anyway since it's not performance intensive
 		if(!postID.match(idRegex)) return false;
 		if(itemsScored < 1) return false;
+		// more than 100 items doesn't actually cause much of an error for the code but it may slow things down a fair bit
+		// given that all entries are checked against eachother for typos and whatnot
+		// and realistically, no one will ever do a top 100 list anyway
 		if(itemsScored > 100) return false;
+		// ensure that the scoring system's length is the same as the number of items scored
 		const scoringSplit = scoringSystem.split(",");
 		if(scoringSystem.length !== 0 && scoringSplit.length !== itemsScored) return false;
 		return true;
 	}
 
 	const submit = () => {
+		// do loading screen
 		setDisplayResults(false);
 		setDisplayLoading(true);
+		// validate stuff
 		const submittedPost = postID;
 		if(!validateForm()){
 			showError("invalid settings");
 			return;
 		}
+		// everything looks right, create new url
 		const params = new URLSearchParams();
 		params.set("listType", listType);
 		params.set("entryCount", itemsScored);
@@ -167,55 +191,56 @@ function RedditPollTally(){
 		params.set("typoThreshold", fixTypos);
 		const url = `/api/tally/${postID}?${params.toString()}`;
 		fetch(url).then(r => r.json()).then(r => {
-			setActivePostID(submittedPost);
+			// not loading anymore
+			setactivePostId(submittedPost);
 			setDisplayLoading(false);
+			// the api returned an error for one reason or another
 			if(r.error){
 				showError(r.message);
 				return;
 			}
+			// we have results
 			setDisplayResults(true);
 			setResults(r);
 		})
 	};
 
 	const download = () => {
+		// get the actual entries as a simple object format
 		const entriesRaw = Object.entries(results.entries).slice(0, downloadItems);
 		const entriesReal = entriesRaw.map(x => ({entry: x[0], points: x[1].points, lists: x[1].lists}));
+		// fixes for | in case it is a markdown table download
 		const tableFix = x => x.replaceAll("|", "");
 		switch(downloadFormat){
 			case "csv":
+				// create a csv from the list
 				stringify(
 					entriesReal,
 					{
-						headers: true,
-						columns: {entry: "entry", points: "points", lists: "lists"}
+						headers: true, // file includes headers
+						columns: {entry: "entry", points: "points", lists: "lists"} // column names
 					},
 					(error, result) => {
 						if(error) return showError("error while downloading csv");
-						downloadFile(result, "csv");
+						downloadFile(result, activePostId, "csv"); // start download once csv is ready
 					}
 				);
 				break;
 			case "markdown":
+				// literally just simple text replacements
 				const base = "|Entry|Points|Lists|\r\n|-|-|-|\r\n";
 				const entriesMD = entriesReal.map(x => `|${tableFix(x.entry)}|${x.points}|${x.lists}|`).join("\r\n");
-				downloadFile(base + entriesMD, "md");
+				downloadFile(base + entriesMD, activePostId, "md");
+				break;
 			default:
+				// this should never happen since the download format is selected in the ui
 				showError("unsupported download format");
 		}
 	}
 
-	const downloadFile = (contents, type) => {
-		const blob = new Blob([contents]);
-		const url = window.URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = `reddit-${activePostID}-results.${type}`;
-		a.click();
-		window.URL.revokeObjectURL(url);
-	}
-
 	useEffect(() => {
+		// check if there is already an oauth token set after the page loads
+		// (document.cookie is not accessible beforehand, and while it *could* be used as a serverside prop, that is unnecessary complication)
 		let parsedCookies = cookie.parse(document.cookie);
 		if(parsedCookies.token){
 			fetch("/api/me").then(x => x.json()).then(x => {
