@@ -6,6 +6,7 @@ let options = {
 };
 
 let entries = new Entries(options);
+let entries2 = new Entries(options);
 
 describe("testing entries", () => {
 	test("adding entries works", () => {
@@ -317,7 +318,6 @@ describe("testing entries", () => {
 	});
 
 	test("adding a whole entry at once works", () => {
-		let entries2 = new Entries(options);
 		entries2.addEntry({
 			username: "a",
 			id: "a",
@@ -333,8 +333,8 @@ describe("testing entries", () => {
 		entries2.addEntry({
 			username: "b",
 			id: "b",
-			list: ["Eee", "Bbb", "Ddd"],
-			normalisedList: ["eee", "bbb", "ddd"]
+			list: ["Aax", "Bbb", "Ddd"],
+			normalisedList: ["aax", "bbb", "ddd"]
 		});
 		expect(entries2.entries).toEqual({
 			aaa: {
@@ -389,12 +389,12 @@ describe("testing entries", () => {
 					}
 				}
 			},
-			eee: {
+			aax: {
 				points: 3,
 				lists: 1,
 				discarded: false,
 				variants: {
-					Eee: {
+					Aax: {
 						points: 3,
 						lists: 1
 					}
@@ -410,5 +410,26 @@ describe("testing entries", () => {
 				list: ["aaa", "aab", "ccc"],
 				normalisedList: ["aaa", "aab", "ccc"]
 		})).toThrow();
+	});
+
+	test("finalising works", () => {
+		expect(entries2.finalise()).toEqual({
+			Bbb: {
+				points: 7,
+				lists: 3
+			},
+			aaa: {
+				points: 6,
+				lists: 2
+			},
+			Ccc: {
+				points: 3,
+				lists: 2
+			},
+			Ddd: {
+				points: 2,
+				lists: 2
+			}
+		})
 	})
 });

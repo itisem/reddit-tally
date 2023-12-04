@@ -29,6 +29,13 @@ export interface Entry{
 	id: string; // comment id, not user id
 	list: string[];
 	normalisedList: string[];
+};
+
+export interface Totals{
+	[key: string]: {
+		points: number;
+		lists: number;
+	}
 }
 
 class Entries{
@@ -44,7 +51,6 @@ class Entries{
 	/** adds an entire entry
 	 * @param {Entry} entry
 	 */
-
 	addEntry(entry: Entry){
 		// normalise the entries
 		entry.normalisedList.forEach(x => {
@@ -76,6 +82,40 @@ class Entries{
 			}
 		}	
 	}
+
+	finalise(): Totals{
+		this.sort();
+		this.fixDuplicates();
+		let totals: Totals = {};
+		for(let key in this.entries){
+			const entry = this.entries[key];
+			// pick the most common variant as display name
+			const variantFrequency = Object.entries(entry.variants).sort(([,a],[,b]) => {
+				// first, sort by lists
+				const diff = b.lists - a.lists;
+				if(diff !== 0) return diff;
+				// then, sort by points
+				const pointsDiff = b.points - a.points;
+				if(pointsDiff !== 0) return pointsDiff;
+				// finally, sort by order
+				return 1;
+			});
+			const bestVariant = variantFrequency[0][0];
+			totals[bestVariant] = {
+				points: entry.points,
+				lists: entry.lists
+			}
+		}
+		return totals;
+	}
+
+	/*************************************************************************
+	 * the following are mainly used as helper functions                     *
+	 *                                                                       *
+	 * they are not marked as private since they may be useful on their own  *
+	 * but think twice before using them and make sure that there isn't a    *
+	 * better alternative                                                    *
+	 *************************************************************************/ 
 
 	/** adds a single item
 	 * @param {EntryName} item - the real entry, as well as its normalised form
@@ -130,11 +170,13 @@ class Entries{
 			let foundDuplicate = false;
 			let j = 0;
 			while(j < i && !foundDuplicate){
+				const nj = names[j];
+				const ni = names[i];
 				// check if two items are duplicate of one another (ensuring that discarded items are not in it)
-				if(!this.entries[names[j]].discarded && isDuplicate(this.reorderings[names[i]], names[j], this.opts.typoThreshold)){
+				if(!this.entries[nj].discarded && isDuplicate(this.reorderings[ni], nj, this.opts.typoThreshold)){
 					// if there is a duplicate issue, add point totals to the earlier one, and discard the newer one
-					let ej = this.entries[names[j]];
-					let ei = this.entries[names[i]];
+					let ej = this.entries[nj];
+					let ei = this.entries[ni];
 					ej.points += ei.points;
 					ej.lists += ei.lists;
 					ej.variants = {...ej.variants, ...ei.variants};
