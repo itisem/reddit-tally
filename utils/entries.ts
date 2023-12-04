@@ -13,8 +13,8 @@ type EntryVariant = {
 };
 
 type EntryName = {
-	real: string,
-	normal: string
+	real: string, // the actual entry, used for display
+	normal: string // the normalised version of the entry
 };
 
 class Entries{
@@ -28,6 +28,7 @@ class Entries{
 	 * @param {number} points - how many points to add
 	 */
 	add(entry: EntryName, points: number){
+		// create new entry if needed
 		if(!this.entries[entry.normal]){
 			this.entries[entry.normal] = {
 				points: 0,
@@ -38,11 +39,13 @@ class Entries{
 		}
 		let currentItem = this.entries[entry.normal];
 		if(!currentItem.variants[entry.real]){
+			// create new spelling variant if needed
 			currentItem.variants[entry.real] = {
 				points: 0,
 				lists: 0
 			}
 		}
+		// add points
 		currentItem.points += points;
 		currentItem.variants[entry.real].points += points;
 		currentItem.lists += 1;
@@ -64,7 +67,9 @@ class Entries{
 			let foundDuplicate = false;
 			let j = 0;
 			while(j < i && !foundDuplicate){
+				// check if two items are duplicate of one another (ensuring that discarded items are not in it)
 				if(!this.entries[names[j]].discarded && isDuplicate(reorderings[names[i]], names[j], threshold)){
+					// if there is a duplicate issue, add point totals to the earlier one, and discard the newer one
 					let ej = this.entries[names[j]];
 					let ei = this.entries[names[i]];
 					ej.points += ei.points;

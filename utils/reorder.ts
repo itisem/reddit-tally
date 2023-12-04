@@ -8,6 +8,7 @@ import range from "./range";
 export default function reorderings(entry: string, listType: ListType = "raw"): string[]{
 	let reorderings = [];
 	if(listType === "artistTitle"){
+		// splits by " - " rather than "-" since previous utils will have already replaced everything with " - "
 		const possibleSplits = entry.split(" - ");
 		return range(possibleSplits.length).map(i => [...possibleSplits.slice(i), ...possibleSplits.slice(0, i)].join(" - "));
 	}

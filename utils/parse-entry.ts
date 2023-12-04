@@ -3,6 +3,7 @@
  */
 export default function parseEntry(entry: string): string[]{
 	let entries = [];
+	// get each line properly
 	const lines = entry.split(/\r?\n/).map(x => x.trim());
 	for(let line of lines){
 		const matches = line.match(/^[#*]?\s?\d+[:\.)]\s*(.*)$/u); // should match any semi-reasonable format
