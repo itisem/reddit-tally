@@ -1,13 +1,13 @@
 import isDuplicate from "./is-duplicate";
 
-type EntryStats = {
+export type EntryStats = {
 	points: number,
 	lists: number,
 	variants: {[key: string]: EntryVariant},
 	discarded: boolean
 };
 
-type EntryVariant = {
+export type EntryVariant = {
 	points: number,
 	lists: number
 };

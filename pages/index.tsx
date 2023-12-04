@@ -11,12 +11,15 @@ import TextField from '@mui/material/TextField';
 import Alert from '@mui/material/Alert';
 import {ThemeProvider, createTheme} from '@mui/material/styles';
 
-import Results from "/components/results";
-import Errors from "/components/errors";
-import HelpButton from "/components/help-button";
-import DownloadButtons from "/components/download-buttons";
+import Results from "../components/results";
+import Errors from "../components/errors";
+import HelpButton from "../components/help-button";
+import DownloadButtons from "../components/download-buttons";
 
-import downloadFile from "/utils/download-file";
+import downloadFile from "../utils/download-file";
+
+import type {ApiResponse} from "./api/tally/[thread]";
+import type {SimpleComment} from "../utils/parse-entries";
 
 // mui colour palette
 const theme = createTheme({
@@ -79,9 +82,13 @@ function RedditPollTally(){
 	const [displayLoading, setDisplayLoading] = useState(false);
 
 	// results
-	const [results, setResults] = useState({
+	const [results, setResults] = useState<ApiResponse>({
 		entries: {},
-		discardedEntries: {userHasMultiplePosts: [], postHasDuplicateEntries: [], postHasWrongEntryCount: []},
+		discardedEntries: {
+			userHasMultiplePosts: ([] as SimpleComment[]),
+			postHasDuplicateEntries: ([] as SimpleComment[]),
+			postHasWrongEntryCount: ([] as SimpleComment[])
+		}
 	});
 
 	// download related settings
@@ -186,9 +193,9 @@ function RedditPollTally(){
 		// everything looks right, create new url
 		const params = new URLSearchParams();
 		params.set("listType", listType);
-		params.set("entryCount", itemsScored);
+		params.set("entryCount", String(itemsScored));
 		params.set("entryScoring", scoringSystem);
-		params.set("typoThreshold", fixTypos);
+		params.set("typoThreshold", String(fixTypos));
 		const url = `/api/tally/${postID}?${params.toString()}`;
 		fetch(url).then(r => r.json()).then(r => {
 			// not loading anymore
@@ -217,7 +224,7 @@ function RedditPollTally(){
 				stringify(
 					entriesReal,
 					{
-						headers: true, // file includes headers
+						header: true, // file includes headers
 						columns: {entry: "entry", points: "points", lists: "lists"} // column names
 					},
 					(error, result) => {

@@ -1,5 +1,6 @@
-import type {ListType} from "../types";
 import range from "./range";
+
+export type ListType = "raw" | "artistTitle";
 
 /** provides the possible reorderings of an entry (mainly used for "title - artist" entries counting the same as "artist - title" entries)
  * @param {string} entry - the entry to reorder

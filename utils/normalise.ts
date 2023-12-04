@@ -1,5 +1,5 @@
 import unidecode from "unidecode";
-import type {ListType} from "../types";
+import type {ListType} from "./reorder";
 
 /** removes various spelling quirks from entries to ensure consistent parsing
  * @param {string} entry - the currently parsed entry
