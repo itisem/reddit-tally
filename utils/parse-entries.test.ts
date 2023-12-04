@@ -84,39 +84,24 @@ describe("entry parsing", () => {
 			],
 			{
 				entryCount: 3,
-				typoThreshold: 0,
-				listType: "raw",
-				entryScoring: [3, 2, 1],
-				thread: "aaaaaa"
+				listType: "raw"
 			}
-		)).toMatchObject({
-			entries: {
-				entries: {
-					a: {
-						points: 6,
-						lists: 2,
-						discarded: false
-					},
-					b: {
-						points: 2,
-						lists: 1,
-						discarded: false
-					},
-					c: {
-						points: 6,
-						lists: 3,
-						discarded: false
-					},
-					d: {
-						points: 3,
-						lists: 2,
-						discarded: false
-					},
-					e: {
-						points: 1,
-						lists: 1,
-						discarded: false
-					}
+		)).toEqual({
+			lists: {
+				user1: {
+					username: "user1",
+					id: "a",
+					list: ["a", "b", "c"]
+				},
+				user2: {
+					username: "user2",
+					id: "b",
+					list: ["a", "c", "d"]
+				},
+				user8: {
+					username: "user8",
+					id: "k",
+					list: ["c", "d", "e"]
 				}
 			},
 			duplicateUserLists: [

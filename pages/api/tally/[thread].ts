@@ -1,7 +1,7 @@
 import Snoowrap from "snoowrap";
 import cookie from "cookie";
-import {distance} from "fastest-levenshtein";
 
+import Entries, {EntryStats, EntriesOpts, Entry} from "../../../utils/entries";
 import parseEntries, {ParseEntriesOpts, SimpleComment} from "../../../utils/parse-entries";
 import range from "../../../utils/range";
 
@@ -38,18 +38,22 @@ export default function tally(req: NextApiRequest, res: NextApiResponse){
 		}
 	}
 	// create some base settings to start with
-	let settings: ParseEntriesOpts = {
-		thread: req.query.thread as string,
+	let parseOpts: ParseEntriesOpts = {
 		listType: (req.query.listType as string) || "artistTitle",
-		typoThreshold: 1,
 		entryCount: 10,
+	};
+
+	let entriesOpts: EntriesOpts = {
+		typoThreshold: 1,
 		entryScoring: []
 	};
+
+	let thread: string = req.query.thread as string;
 
 	// change typo threshold if it exists as a param
 	if(req.query.typoThreshold !== undefined){
 		try{
-			settings.typoThreshold = +(req.query.typoThreshold as string);
+			entriesOpts.typoThreshold = +(req.query.typoThreshold as string);
 		}
 		catch{
 			return res.status(400).json({error: true, message: "typo threshold needs to be a number"});
@@ -59,7 +63,7 @@ export default function tally(req: NextApiRequest, res: NextApiResponse){
 	// change entry count if it exists as a param
 	if(req.query.entryCount !== undefined){
 		try{
-			settings.entryCount =  +(req.query.entryCount as string);
+			parseOpts.entryCount =  +(req.query.entryCount as string);
 		}
 		catch{
 			return res.status(400).json({error: true, message: "entry count needs to be a number"});
@@ -71,7 +75,7 @@ export default function tally(req: NextApiRequest, res: NextApiResponse){
 		try{
 			// ensure that the scoring system is the correct length
 			const tmpScoring = (req.query.entryScoring as string).split(",").map(x => +x);
-			if(tmpScoring.length === settings.entryCount) settings.entryScoring = tmpScoring;
+			if(tmpScoring.length === parseOpts.entryCount) entriesOpts.entryScoring = tmpScoring;
 			else return res.status(400).json({error: true, message: "scoring system contains incorrect number of scores"});
 		}
 		catch{
@@ -80,21 +84,25 @@ export default function tally(req: NextApiRequest, res: NextApiResponse){
 	}
 	else{
 		// create a default scoring system
-		settings.entryScoring = range(settings.entryCount).map(x => x+1).reverse();
+		entriesOpts.entryScoring = range(parseOpts.entryCount).map(x => x+1).reverse();
 	}
+
+	let entries = new Entries(entriesOpts); // all entries
 
 	const r = new Snoowrap({
 		userAgent: "reddit-tally",
 		accessToken: cookies.token
 	});
 	// get all comments
-	const submission = r.getSubmission(settings.thread);
+	const submission = r.getSubmission(thread);
 	submission.expandReplies({limit: Infinity, depth: Infinity}).then(response => {
 		const comments = response.comments;
-		let {entries, duplicateUserLists, duplicateEntryLists, wrongCountLists, reorderings} = parseEntries(comments, settings);
-
+		let {lists, duplicateUserLists, duplicateEntryLists, wrongCountLists, reorderings} = parseEntries(comments, parseOpts);
+		for(let user in lists){
+			entries.addEntry(lists[user]);
+		}
 		entries.sort(); // sort by points
-		entries.fixDuplicates(reorderings, settings.typoThreshold);
+		entries.fixDuplicates(reorderings);
 
 		let finalEntries = {};
 		for(let key in entries.entries){

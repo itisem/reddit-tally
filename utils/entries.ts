@@ -1,74 +1,122 @@
 import isDuplicate from "./is-duplicate";
+import hasDuplicates from "./has-duplicates";
 
-export type EntryStats = {
+export interface EntriesOpts{
+	typoThreshold: number;
+	entryScoring: number[];	
+}
+
+export interface EntryStats{
 	points: number,
 	lists: number,
 	variants: {[key: string]: EntryVariant},
 	discarded: boolean
 };
 
-export type EntryVariant = {
+export interface EntryVariant{
 	points: number,
 	lists: number
 };
 
-type EntryName = {
+export interface EntryName{
 	real: string, // the actual entry, used for display
 	normal: string // the normalised version of the entry
 };
 
+export interface Entry{
+	username: string;
+	id: string; // comment id, not user id
+	list: string[];
+}
+
 class Entries{
 	entries: {[key: string]: EntryStats};
-	constructor(){
+	opts: EntriesOpts;
+	reorderings: {[key: string]: string[]};
+	constructor(opts: EntriesOpts){
 		this.entries = {};
+		this.opts = opts;
+		this.reorderings = {};
 	}
 
-	/** adds an entry
-	 * @param {EntryName} entry - the real entry, as well as its normalised form
+	/** adds an entire entry
+	 * @param {Entry} entry
+	 */
+
+	addEntry(entry: Entry){
+		// normalise the entries
+		normalisedEntries.forEach(x => {
+			if(!this.reorderings[x]) this.reorderings[x] = reorder(x);
+		});
+
+		// ensure that someone didn't sneak in some duplicates via misspelling them
+		// double multiplier so that you can't just make two things both 1 letter off from the correct
+		if(hasDuplicates(normalisedEntries, this.reorderings, this.opts.typoThreshold * 2)){
+			throw new Error("duplicate entries in list", {cause: {list: {username: entry.username, id: entry.id}}});
+		}
+		else{
+			for(let i = 0; i < normalisedEntries.length; i++){ // collect points, no typo fixing just yet
+				this.add(
+					{
+						real: list.list[i],
+						normal: normalisedEntries[i]
+					},
+					this.entryScoring[i]
+				);
+			}
+		}	
+	}
+
+	/** adds a single item
+	 * @param {EntryName} item - the real entry, as well as its normalised form
 	 * @param {number} points - how many points to add
 	 */
-	add(entry: EntryName, points: number){
+	add(item: EntryName, points: number){
 		// create new entry if needed
-		if(!this.entries[entry.normal]){
-			this.entries[entry.normal] = {
+		if(!this.entries[item.normal]){
+			this.entries[item.normal] = {
 				points: 0,
 				lists: 0,
 				variants: {},
 				discarded: false
 			};
 		}
-		let currentItem = this.entries[entry.normal];
-		if(!currentItem.variants[entry.real]){
+		let currentItem = this.entries[item.normal];
+		if(!currentItem.variants[item.real]){
 			// create new spelling variant if needed
-			currentItem.variants[entry.real] = {
+			currentItem.variants[item.real] = {
 				points: 0,
 				lists: 0
 			}
 		}
 		// add points
 		currentItem.points += points;
-		currentItem.variants[entry.real].points += points;
+		currentItem.variants[item.real].points += points;
 		currentItem.lists += 1;
-		currentItem.variants[entry.real].lists += 1;
+		currentItem.variants[item.real].lists += 1;
 	}
 
 	/** sorts the entries by number of points */
 	sort(){
-		this.entries = Object.fromEntries(Object.entries(this.entries).sort(([,a],[,b]) => b.points - a.points));
+		this.entries = Object.fromEntries(
+			Object.entries(this.entries).sort(
+				([,a],[,b]) => b.points - a.points
+			)
+		);
 	}
 
 	/** fixes duplicates
-	 * @param {[key: string]: string[]} reorderings - all the possible reorderings of each entry
+	 * @param {[key: string]: string[]} reorderings - all the possible reorderings of each entry. used to ensure that there are no unnecessary recalculations
 	 * @param {number} threshold - how many typos are acceptable before 2 words are different
 	 */
-	fixDuplicates(reorderings: {[key: string]: string[]}, threshold: number){
+	fixDuplicates(reorderings: {[key: string]: string[]}){
 		const names = Object.keys(this.entries);
 		for(let i = 0; i < names.length; i++){ // gets rid of typo-based duplicates
 			let foundDuplicate = false;
 			let j = 0;
 			while(j < i && !foundDuplicate){
 				// check if two items are duplicate of one another (ensuring that discarded items are not in it)
-				if(!this.entries[names[j]].discarded && isDuplicate(reorderings[names[i]], names[j], threshold)){
+				if(!this.entries[names[j]].discarded && isDuplicate(reorderings[names[i]], names[j], this.opts.typoThreshold)){
 					// if there is a duplicate issue, add point totals to the earlier one, and discard the newer one
 					let ej = this.entries[names[j]];
 					let ei = this.entries[names[i]];

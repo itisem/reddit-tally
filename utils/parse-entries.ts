@@ -2,16 +2,13 @@ import parseEntry from "./parse-entry";
 import normalise from "./normalise";
 import hasDuplicates from "./has-duplicates";
 import reorder, {ListType} from "./reorder";
-import Entries, {EntryStats} from "./entries";
+import type {Entry} from "./entries";
 
 import type {Comment} from "snoowrap";
 
 export interface ParseEntriesOpts{
 	entryCount: number;
 	listType: string;
-	typoThreshold: number;
-	entryScoring: number[];
-	thread: string;
 }
 
 export interface SimpleComment{
@@ -29,22 +26,16 @@ interface FakeComment{
 	body: string
 }
 
-export interface Entry extends SimpleComment{
-	list: string[];
-}
-
 export interface ParseEntriesResults{
 	duplicateUserLists: SimpleComment[];
 	duplicateEntryLists: SimpleComment[];
 	wrongCountLists: SimpleComment[];
-	entries: Entries;
-	reorderings: {[key: string]: string[]};
+	lists: {[key: string]: Entry};
 }
 
 // does some basic parsing on all entries, but no typo fixing
 export default function parseEntries(comments: (Comment | FakeComment)[], opts: ParseEntriesOpts): ParseEntriesResults{
-	let entries = new Entries(); // all entries
-	let reorderings: {[key: string]: string[]} = {}; // all possible text reorderings of stuff
+	// create a new entries set to add
 	let parsedUsers: string[] = []; // list of users, used for duplicate lists
 	let lists: {[key: string]: Entry} = {};
 	let duplicateUserSet: Set<string> = new Set(); // all duplicate users
@@ -68,7 +59,8 @@ export default function parseEntries(comments: (Comment | FakeComment)[], opts: 
 			continue;
 		}
 		// turn an entry to a usable list
-		const entry = parseEntry(comment.body);
+		let entry = parseEntry(comment.body);
+		entry = entry.map(x => normalise(x, opts.listType as ListType));
 		// remove entries with wrong counts
 		if(entry.length !== opts.entryCount){
 			wrongCountLists.push({username, id: comment.id});
@@ -83,25 +75,5 @@ export default function parseEntries(comments: (Comment | FakeComment)[], opts: 
 		// add list to lists
 		lists[username] = {username, list: entry, id: comment.id};
 	}
-	// normalisation, no typo fixing
-	for(let user in lists){
-		const list = lists[user];
-		// doing it like this prevents having to reorder/re-normalise everything n times. not the prettiest, but it does the job
-		const normalisedEntries = list.list.map(x => normalise(x, opts.listType as ListType));
-		normalisedEntries.forEach(x => {
-			if(!reorderings[x]) reorderings[x] = reorder(x);
-		});
-
-		// ensure that someone didn't sneak in some duplicates via misspelling them
-		// double multiplier so that you can't just make two things both 1 letter off from the correct
-		if(hasDuplicates(normalisedEntries, reorderings, opts.typoThreshold * 2)){
-			duplicateEntryLists.push({username: list.username, id: list.id});
-		}
-		else{
-			for(let i = 0; i < normalisedEntries.length; i++){ // collect points, no typo fixing just yet
-				entries.add({real: list.list[i], normal: normalisedEntries[i]}, opts.entryScoring[i]);
-			}
-		}		
-	}
-	return {entries, duplicateUserLists, duplicateEntryLists, wrongCountLists, reorderings};
+	return {lists, duplicateUserLists, duplicateEntryLists, wrongCountLists};
 }
